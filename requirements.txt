@@ -9,8 +9,9 @@ eth-account>=0.10.0      # imported directly for private-key parsing/signing
                         # explicitly here since our code imports it by name.
 
 # Milestone 2: real face processing
-opencv-python>=4.8.0    # Haar cascade detection (bundled, no extra
-                        # download) + image decode/processing.
+opencv-python==4.12.0.88  # Pinned: ships the Haar cascade used by the
+                          # default processor and has a Windows wheel
+                          # compatible with Python 3.13.
 numpy>=1.24.0           # used directly for LBP embedding + cosine similarity
 
 # Testing
