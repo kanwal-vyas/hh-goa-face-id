@@ -1,0 +1,42 @@
+# Environment / secrets
+.env
+
+# Node.js dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Local artifacts / demo output (not committed — examples/ ships only
+# explicitly authorized sample assets, tracked separately if/when added)
+*.log
+
+# Authorized test images (never commit real photos of people)
+tests/fixtures/authorized_faces/*.jpg
+tests/fixtures/authorized_faces/*.jpeg
+tests/fixtures/authorized_faces/*.png
+!tests/fixtures/authorized_faces/README.md
+
+# Optional DNN model weights (only if the documented upgrade path is used)
+models/*.onnx

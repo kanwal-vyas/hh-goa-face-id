@@ -1,0 +1,20 @@
+{
+  "name": "hh-goa-2026-task3",
+  "version": "1.0.0",
+  "description": "Hackathon shortlisting submission (Task 3). This repository implements a modular pipeline that: processes a face image, discovers matching content within an authorized, bounded search target, fingerprints that content, registers the fingerprint on a blockchain, and later verifies whether the content has remained unchanged.",
+  "main": "index.js",
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "hardhat": "^3.15.0"
+  }
+}

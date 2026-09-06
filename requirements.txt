@@ -1,0 +1,22 @@
+# Milestone 1: scaffold + configuration
+python-dotenv>=1.0.0    # .env loading for app/config/settings.py
+
+# Milestone 4: local blockchain registration/retrieval
+web3>=6.0.0              # RPC client for the local EVM dev chain
+eth-account>=0.10.0      # imported directly for private-key parsing/signing
+                        # (app/blockchain/local_provider.py); also a
+                        # transitive dependency of web3, but declared
+                        # explicitly here since our code imports it by name.
+
+# Milestone 2: real face processing
+opencv-python>=4.8.0    # Haar cascade detection (bundled, no extra
+                        # download) + image decode/processing.
+numpy>=1.24.0           # used directly for LBP embedding + cosine similarity
+
+# Testing
+pytest>=7.4.0
+
+# Optional, only needed if you run scripts/download_face_models.py to
+# fetch the documented DNN upgrade-path weights. Not required for the
+# default pipeline.
+# requests>=2.31.0
