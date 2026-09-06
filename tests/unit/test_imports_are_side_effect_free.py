@@ -16,6 +16,7 @@ import time
 APP_MODULES = [
     "app.config.settings",
     "app.search.interface",
+    "app.search.authorized_corpus",
     "app.blockchain.interface",
     "app.face.processor",
     "app.face.compare",

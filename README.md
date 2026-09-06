@@ -8,11 +8,11 @@ whether the content has remained unchanged.
 
 ## Current implementation status
 
-**Milestone 4 is complete: local blockchain registration, retrieval,
-and fingerprint verification.** Real/social-media search
-(`SearchProvider`) is **not implemented** — this is the single biggest
-remaining piece of the original Task 3 pipeline, and this README does
-not claim otherwise anywhere below.
+**Milestone 7 is complete: bounded candidate matching.** The repository
+includes a real, local `SearchProvider` implementation that retrieves
+only a small preconfigured consented demo corpus, plus deterministic
+candidate-image matching. It is not a social-media or open-web search
+system.
 
 Implemented and real (not stubbed, not mocked):
 - **Face detection / encoding** (`app/face/opencv_processor.py`,
@@ -37,14 +37,20 @@ Implemented and real (not stubbed, not mocked):
   Blockchain" below); a dedicated `Verifier` abstraction for this same
   comparison, wired into the full pipeline, is still scaffolded only
   (see Known Limitations).
+- **Authorized local corpus search** (`app/search/authorized_corpus.py`)
+  — deterministic filtering and ranking of committed synthetic demo
+  records, with no network access and no biometric lookup.
+- **Candidate matching** (`app/matching/candidate_matcher.py`) — local
+  candidate-image processing, face-similarity comparison, explicit
+  rejection handling, deterministic ranking, and cautious selection.
 - **CLI demonstrations** for all of the above (`--reference`/
-  `--compare`, `--fingerprint`, `--blockchain-demo`).
+  `--compare`, `--fingerprint`, `--blockchain-demo`, and
+  `scripts/run_authorized_match_demo.py`).
 
-**Not implemented**: `SearchProvider` (real/social-media search),
-candidate matching against search results, and the full end-to-end
-pipeline orchestration (`PipelineRunner` remains a standalone scaffold —
-see Known Limitations). This project does not perform any web or
-social-media search of any kind at this stage.
+**Not implemented**: full end-to-end pipeline orchestration
+(`PipelineRunner` remains a
+standalone scaffold — see Known Limitations). This project performs no
+web or social-media search of any kind.
 
 ## Face processing
 
@@ -140,8 +146,9 @@ deadline).
 ### Exact commands
 
 ```bash
-python main.py --reference examples/reference.jpg
-python main.py --reference examples/reference.jpg --compare examples/candidate.jpg
+python main.py --reference examples/test_face.jpg
+python main.py --reference examples/test_face.jpg --compare examples/authorized_demo_images/harbor-avatar.png
+python scripts/run_authorized_match_demo.py --reference examples/test_face.jpg
 ```
 
 Example output (illustrative — actual similarity/band depend on your
@@ -161,13 +168,13 @@ images):
 
 Note: this is a similarity score, not proof of real-world identity.
 
-Remaining pipeline stages are pending:
-  · [3/8] Candidate matching: not implemented in this milestone
-  · [4/8] Content extraction: not implemented in this milestone
-  · [5/8] Canonicalization: not implemented in this milestone
-  · [6/8] SHA-256 fingerprint: not implemented in this milestone
-  · [7/8] Blockchain registration: not implemented in this milestone
-  · [8/8] Verification: not implemented in this milestone
+Remaining pipeline stages are not wired into this CLI flow:
+  · [3/8] Candidate matching: not wired into this CLI flow
+  · [4/8] Content extraction: not wired into this CLI flow
+  · [5/8] Canonicalization: not wired into this CLI flow
+  · [6/8] SHA-256 fingerprint: not wired into this CLI flow
+  · [7/8] Blockchain registration: not wired into this CLI flow
+  · [8/8] Verification: not wired into this CLI flow
 ```
 
 **Similarity ≠ confirmed identity.** This score is a face-similarity
@@ -595,7 +602,7 @@ Reference Image
 Face Processing            (detect → embed)
       │
       ▼
-SearchProvider              (abstract interface — see Scope below)
+SearchProvider              (authorized local corpus implementation — see Scope)
       │
       ▼
 Candidate Matching          (face similarity ⊥ content relevance)
@@ -629,8 +636,8 @@ project/
 ├── app/
 │   ├── face/            # FaceProcessor/FaceComparator interfaces + models,
 │   │                     # OpenCVFaceProcessor + CosineFaceComparator (real impl)
-│   ├── search/           # SearchProvider interface + models (see Scope)
-│   ├── matching/          # CandidateMatcher interface + MatchResult
+│   ├── search/           # SearchProvider interface + bounded local corpus provider
+│   ├── matching/          # CandidateMatcher + authorized-corpus implementation
 │   ├── content/           # ContentExtractor interface; DeterministicCanonicalizer
 │   │                       # + ContentFingerprint/hash_canonical_content/
 │   │                       # hash_source_reference (real impl)
@@ -652,7 +659,7 @@ project/
 ├── scripts/
 │   ├── run_demo.py         # Thin CLI wrapper, will grow into the demo entry point
 │   └── download_face_models.py  # Optional DNN upgrade-path fetch (see Face processing)
-├── examples/                # demo_content.txt (safe sample text for --blockchain-demo)
+├── examples/                # safe blockchain text + authorized synthetic corpus/assets
 ├── .env.example
 ├── requirements.txt
 └── main.py
@@ -709,10 +716,12 @@ pytest
 
 Current coverage includes: configuration loading/validation, data model
 validation (embeddings, candidates, canonical content, verification
-results), confirmation that `SearchProvider` remains abstract with no
-concrete subclass shipped, CLI behavior (help, missing file, corrupted
-file, no-face file), and an import-speed/guard test confirming no model
-loading or network call happens at import time.
+results), authorized-corpus initialization, filtering, ranking,
+malformed-corpus rejection, deterministic retrieval, and a guard that
+the provider does not use a reference embedding handle to select a
+candidate. It also covers CLI behavior (help, missing file, corrupted
+file, no-face file), and import-speed guards against model loading or
+network calls at import time.
 
 **Face processing tests** (`tests/unit/test_face_processor.py`,
 `tests/unit/test_face_comparison_logic.py`) split into two groups:
@@ -807,16 +816,83 @@ open-web person-identification, reverse-face-search, or social-media
 scraping capability, and no such capability will be implemented in this
 project.
 
-The concrete `SearchProvider` implementation planned for a later
-milestone will operate only against an **authorized, bounded demo
-corpus/target** — for example, a small local dataset seeded by the
-project operator with consented material, or a single previously-agreed
-source being re-checked for integrity. Every downstream stage (matching,
-extraction, canonicalization, hashing, blockchain registration,
-verification) will still run for real against that authorized target —
-nothing about this scoping makes the demo fake — but the search
-*universe* is deliberately bounded and authorized rather than
-general-purpose.
+`AuthorizedCorpusSearchProvider` in `app/search/authorized_corpus.py`
+implements that boundary now. It loads only an operator-selected local
+JSON file (`examples/authorized_demo_corpus.json` for the demo); it
+never calls the network, scrapes a platform, accepts raw face data, or
+reads `SearchQuery.face_embedding_ref`. Search uses only the authorized
+corpus's `dataset_id`, `source_reference`, `tag`, and `keywords` hints.
+Keyword coverage produces a provider relevance score; results are then
+ordered by score and `candidate_id` for deterministic output. That
+relevance is content retrieval only, not face similarity and never an
+identity claim.
+
+Each v1 corpus record requires `candidate_id`, URL-like
+`source_reference`, non-empty `text`, string-only `metadata`, an
+`image_path` relative to the corpus file, and optional string `tags`.
+The committed corpus contains procedural synthetic 512×512 PNG portraits
+and fictional community-post text only—no real people, photographs, or
+private information. The PNGs are generated locally from deterministic
+shapes, gradients, and noise by
+`scripts/generate_synthetic_demo_faces.py`; the generator takes no image
+input. Copy the JSON file and its local assets to replace it with a
+separately authorized dataset; construct
+`AuthorizedCorpusSearchProvider` with the replacement path. A future
+provider for an authorized real source can implement the same
+`SearchProvider.search(SearchQuery) -> list[SearchCandidate]` contract
+while enforcing that source's consent, authentication, retention, and
+API rules. It must still keep candidate retrieval separate from
+downstream face similarity (`NO_MATCH`, `POSSIBLE_MATCH`, or
+`STRONG_MATCH`).
+
+This deliberately bounded demo corpus is **not an open-web search
+engine**, reverse-image service, or arbitrary-person identification
+tool.
+
+## Candidate matching
+
+`AuthorizedCorpusCandidateMatcher` connects candidates returned by the
+bounded provider to the existing local `FaceProcessor` and
+`FaceComparator`. The caller supplies an already-produced reference
+`FaceEmbedding`, the processor/comparator implementations, and the
+provider's `candidate_image_paths`. For every returned candidate, the
+matcher reads the local authorized image, requires exactly one detected
+face, and compares that face's embedding with the supplied reference.
+The result is an existing `MatchResult`, which retains the original
+`SearchCandidate`, the independent provider relevance, face similarity
+score/band, usability, rejection reason, selection flag, and selection
+explanation.
+
+No usable score is manufactured when content cannot be evaluated:
+missing/unreadable paths and decoder/processor failures are rejected;
+zero faces are rejected; and multiple faces are rejected without picking
+one arbitrarily. Rejected candidates follow usable candidates in the
+ranked results and preserve a clear reason.
+
+Usable candidates are ranked, deterministically and without a combined
+opaque confidence formula, by:
+
+1. Match band: `STRONG_MATCH`, then `POSSIBLE_MATCH`, then `NO_MATCH`.
+2. Face similarity score, highest first, within a band.
+3. Stable `candidate_id`, ascending, as a tie-breaker.
+
+Selection is deliberately stricter than ranking. A result is selected
+only if it is the sole highest-scoring `STRONG_MATCH`. If no candidates
+are returned, the ranked list is empty. If all are rejected, none is
+selected. `NO_MATCH` and `POSSIBLE_MATCH` candidates remain visible but
+unselected. When the top `STRONG_MATCH` score is tied, all tied results
+are reported as ambiguous and none is selected. Multiple strong matches
+with distinct scores select the unique highest score according to this
+rule. A selected candidate is still only a similarity-based candidate
+selection; it is never confirmation of a person's real-world identity.
+
+This matching layer does not introduce a network source or reverse-image
+lookup. `scripts/run_authorized_match_demo.py` exercises the real local
+path: it processes the supplied reference, discovers every record from
+the authorized corpus, requires exactly one detected face per candidate,
+and prints the actual similarity score and match band. It does not alter
+the still-scaffolded `PipelineRunner`; a later integration milestone can
+inject the same provider and matcher into that runner.
 
 ## Privacy/security considerations
 
@@ -839,15 +915,10 @@ general-purpose.
 
 ## Known limitations
 
-- **Face detection/comparison is not fully verified against a real
-  photo in this environment.** The zero-face path, all embedding/
-  comparison math, and error handling were verified with synthetic
-  images. The "exactly one face" and "multiple faces" detection paths
-  are implemented but were not run against an actual photograph in this
-  environment — no authorized image was available, and none was
-  downloaded or fabricated per this project's scope constraints. These
-  paths are covered by tests that will run automatically once you
-  supply your own authorized test photos (see Testing above).
+- The bundled corpus validates the real decode/detect/compare path with
+  locally generated synthetic PNGs. This is a deterministic engineering
+  demo, not an accuracy or identity benchmark; Haar+LBP still needs
+  evaluation on a separately authorized dataset before any broader use.
 - Haar+LBP is a classical, zero-download approach chosen for
   reproducibility under a hard deadline — it is meaningfully less
   accurate than a modern deep face-embedding model. See "Face
@@ -856,12 +927,11 @@ general-purpose.
 - Match-band thresholds are a documented heuristic, not a scientifically
   validated cutoff for this embedding — tune `MATCH_THRESHOLD` against
   your own images before a demo.
-- **No concrete `SearchProvider` exists.** This is the largest gap
-  against the original Task 3 pipeline concept: there is no web or
-  social-media search, no candidate discovery, and no candidate
-  matching against search results. The interface exists but is
-  intentionally not instantiable — see "SearchProvider scope" above for
-  why, and what an authorized implementation would need to look like.
+- **Search is intentionally local and bounded.** The bundled provider
+  searches only the committed synthetic corpus. Candidate matching is
+  available as a local component, but neither is wired into the
+  scaffolded `PipelineRunner` or a concrete `ContentExtractor`. It cannot search the web,
+  social-media platforms, or arbitrary people.
 - **The local blockchain is development/demo infrastructure, not
   production infrastructure.** `LocalBlockchainProvider` targets a
   local Hardhat-style dev node with unlocked test accounts; it has not
@@ -913,8 +983,8 @@ general-purpose.
 4. **Local blockchain** — `LocalBlockchainProvider`, `FingerprintRegistry.sol`,
    register/retrieve round-trip, CLI `--blockchain-demo` with real
    local-vs-on-chain verification. ✅ done
-5. `SearchProvider` (authorized demo corpus) — real, non-hardcoded retrieval/ranking. Not started.
-6. Candidate matching — combine face similarity + content relevance into `MatchResult`. Not started.
+5. `SearchProvider` (authorized demo corpus) — real, non-hardcoded retrieval/ranking. ✅ done
+6. Candidate matching — combine face similarity + content relevance into `MatchResult`. ✅ done
 7. Dedicated `Verifier` + `PipelineRunner` integration — consolidate the
    comparison currently inline in `--blockchain-demo` into the
    `Verifier` abstraction, and wire face processing, canonicalization,

@@ -10,8 +10,9 @@ bounded demo corpus/target that the project operator controls and has
 explicit permission to use (e.g. a small local dataset seeded for the
 demo, or a single previously-agreed source to re-check).
 
-No concrete SearchProvider is implemented in this milestone. Only the
-provider-agnostic data structures and interface are defined here.
+Concrete providers must retain these provider-agnostic data structures.
+The bundled authorized-corpus provider lives in
+``app.search.authorized_corpus`` rather than in this interface module.
 """
 
 from __future__ import annotations
@@ -34,13 +35,12 @@ class SearchQuery:
     Attributes:
         reference_id: Opaque handle identifying this pipeline run. Not a
             biometric payload — just a correlation id for logging/tracing.
-        face_embedding_ref: A reference/token pointing at a face embedding
+        face_embedding_ref: An opaque reference/token for a face embedding
             held elsewhere in the pipeline (e.g. an in-memory handle or a
-            short-lived cache key). Concrete providers must not require or
-            accept the raw embedding vector or raw image bytes in this
-            field; it exists so a provider *implementation* can decide, in
-            a scoped and documented way, whether/how to use embedding
-            similarity within its authorized corpus.
+            short-lived cache key). Concrete providers must neither accept
+            raw biometric data nor use this token for retrieval. Face
+            similarity is evaluated later by the face-processing/matching
+            stages, separately from content discovery.
         query_hints: Optional, caller-supplied hints such as a known
             source URL, dataset id, or filename to check. This field is
             for narrowing a search within an authorized target — it is
@@ -92,10 +92,9 @@ class SearchCandidate:
 class SearchProvider(ABC):
     """Abstract, provider-agnostic search interface.
 
-    Concrete subclasses are added in a later milestone once the
-    authorized demo corpus/target has been decided. This class must
-    remain abstract — it should never be instantiated directly, and
-    this milestone does not ship any concrete subclass.
+    This class remains abstract and must never be instantiated directly.
+    Concrete implementations must stay within an authorized, bounded
+    target and return content candidates, not identity claims.
     """
 
     @abstractmethod

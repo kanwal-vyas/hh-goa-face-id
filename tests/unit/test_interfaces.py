@@ -66,9 +66,8 @@ def test_on_chain_payload_constructs():
     assert payload.algorithm == "SHA-256"
 
 
-def test_search_interface_module_has_no_concrete_provider():
-    """Guard against accidentally shipping a concrete SearchProvider in
-    this milestone — only the abstract interface should be defined."""
+def test_search_interface_module_keeps_the_abstraction_separate():
+    """Concrete providers belong in dedicated modules, not the interface."""
     import app.search.interface as mod
 
     concrete_subclasses = [

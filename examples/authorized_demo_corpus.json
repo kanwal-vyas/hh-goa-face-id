@@ -1,0 +1,41 @@
+{
+  "schema_version": "v1",
+  "records": [
+    {
+      "candidate_id": "demo-post-harbor-01",
+      "source_reference": "demo://authorized-social/posts/harbor-01",
+      "text": "Synthetic community account: harbour cleanup workshop planning note.",
+      "metadata": {
+        "dataset_id": "synthetic-coastal-club-2026",
+        "posted_at": "2026-01-14T09:30:00Z",
+        "content_notice": "Procedural synthetic raster portrait; no real-person data."
+      },
+      "tags": ["harbor", "workshop", "volunteer"],
+      "image_path": "authorized_demo_images/harbor-avatar.png"
+    },
+    {
+      "candidate_id": "demo-post-coast-02",
+      "source_reference": "demo://authorized-social/posts/coast-02",
+      "text": "Synthetic community account: coastal repair workshop recap and thank-you.",
+      "metadata": {
+        "dataset_id": "synthetic-coastal-club-2026",
+        "posted_at": "2026-01-18T16:00:00Z",
+        "content_notice": "Procedural synthetic raster portrait; no real-person data."
+      },
+      "tags": ["coast", "workshop", "repair"],
+      "image_path": "authorized_demo_images/coast-avatar.png"
+    },
+    {
+      "candidate_id": "demo-post-garden-03",
+      "source_reference": "demo://authorized-social/posts/garden-03",
+      "text": "Synthetic community account: seed library garden exchange announcement.",
+      "metadata": {
+        "dataset_id": "synthetic-garden-club-2026",
+        "posted_at": "2026-02-03T11:15:00Z",
+        "content_notice": "Procedural synthetic raster portrait; no real-person data."
+      },
+      "tags": ["garden", "seeds", "community"],
+      "image_path": "authorized_demo_images/garden-avatar.png"
+    }
+  ]
+}

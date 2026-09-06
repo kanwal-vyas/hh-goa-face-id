@@ -3,9 +3,9 @@
 HH Goa 2026 — Face Identification & Blockchain Verification
 CLI entry point.
 
-At this milestone, only the project scaffold and configuration are
-implemented. Running the pipeline reports which stages are pending —
-it does not fabricate a successful end-to-end result.
+Individual local stages are implemented, but they are not yet wired
+together as one end-to-end CLI pipeline. The CLI reports stages that
+are not part of its current flow and never fabricates a result.
 """
 
 from __future__ import annotations
@@ -37,6 +37,13 @@ def _configure_logging(log_level: str) -> None:
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+
+def _configure_output_encoding() -> None:
+    """Emit CLI text as UTF-8 even when Windows defaults to a legacy code page."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,9 +96,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _print_pending_stages(start_index: int) -> None:
     total = len(STAGE_NAMES)
-    print("\nRemaining pipeline stages are pending:")
+    print("\nRemaining pipeline stages are not wired into this CLI flow:")
     for i in range(start_index, total + 1):
-        print(f"  · [{i}/{total}] {STAGE_NAMES[i - 1]}: not implemented in this milestone")
+        print(f"  · [{i}/{total}] {STAGE_NAMES[i - 1]}: not wired into this CLI flow")
 
 
 def _run_fingerprint_demo(text_file_path: str) -> int:
@@ -241,6 +248,7 @@ def _run_blockchain_demo(text_file_path: str, settings) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_output_encoding()
     parser = build_parser()
     args = parser.parse_args(argv)
 

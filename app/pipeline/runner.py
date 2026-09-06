@@ -13,16 +13,16 @@ architecture:
     [7/8] Blockchain registration
     [8/8] Verification
 
-At this milestone, none of the concrete stage implementations exist yet
-(only their interfaces do — see app/face, app/search, app/matching,
-app/content, app/blockchain, app/verification). This runner therefore
-does NOT execute a working pipeline. Its job in this milestone is to:
+Several concrete stages now exist (notably face processing, authorized
+corpus search, candidate matching, canonicalization, and local blockchain
+operations), but this runner does not yet inject or connect them into one
+working pipeline. Its current job is to:
 
     1. Accept a reference image path.
     2. Perform the one real check that IS meaningful yet (does the file
        exist / is it readable).
-    3. Clearly report, stage by stage, that implementation is pending —
-       never print a fabricated success status.
+    3. Clearly report, stage by stage, that integration is pending — never
+       print a fabricated success status.
 
 This keeps `main.py` honest and gives later milestones a stable place to
 wire in real stage implementations one at a time.
@@ -87,17 +87,17 @@ class PipelineRunReport:
 class PipelineRunner:
     """Orchestrates the pipeline stages.
 
-    Concrete stage implementations are injected in later milestones
-    (e.g. via constructor parameters for FaceProcessor, SearchProvider,
-    etc). At this milestone, no stage implementations are wired in, so
-    the runner only validates its input and reports scaffold status.
+    Concrete stage implementations will be injected in a later integration
+    milestone (e.g. via constructor parameters for FaceProcessor,
+    SearchProvider, CandidateMatcher, etc). For now, it validates input
+    and reports its own scaffold status.
     """
 
     def __init__(self) -> None:
-        # Later milestones will accept and store concrete stage
-        # implementations here (FaceProcessor, SearchProvider,
+        # A later integration milestone will accept and store the existing
+        # concrete stage implementations here (FaceProcessor, SearchProvider,
         # CandidateMatcher, ContentExtractor, Canonicalizer,
-        # BlockchainProvider, Verifier). None are available yet.
+        # BlockchainProvider, Verifier).
         pass
 
     def run(self, reference_image: str | Path) -> PipelineRunReport:
@@ -122,7 +122,7 @@ class PipelineRunner:
                 index=i,
                 total=total,
                 implemented=False,
-                detail="not implemented in this milestone",
+                detail="not wired into PipelineRunner yet",
             )
             logger.info("%s — %s", status.label, status.detail)
             stages.append(status)
@@ -130,7 +130,7 @@ class PipelineRunner:
         report = PipelineRunReport(reference_image=ref_path, stages=tuple(stages))
         logger.info(
             "Pipeline scaffold run complete for %s. No stages are "
-            "implemented yet in this milestone; this is expected.",
+            "wired into PipelineRunner yet; this is expected.",
             ref_path,
         )
         return report
