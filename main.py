@@ -3,9 +3,9 @@
 HH Goa 2026 — Face Identification & Blockchain Verification
 CLI entry point.
 
-Individual local stages are implemented, but they are not yet wired
-together as one end-to-end CLI pipeline. The CLI reports stages that
-are not part of its current flow and never fabricates a result.
+The authorized local demo can run the full eight-stage pipeline while
+the individual comparison, fingerprint, and blockchain demos remain
+available as focused commands.
 """
 
 from __future__ import annotations
@@ -22,13 +22,17 @@ from app.blockchain.local_provider import (
     LocalBlockchainProvider,
 )
 from app.config.settings import ConfigError, load_settings
+from app.content.authorized_corpus import AuthorizedCorpusContentExtractor
 from app.content.canonicalize import DeterministicCanonicalizer
 from app.content.extractor import DiscoveredContent
 from app.content.fingerprint import hash_canonical_content, hash_source_reference
 from app.face.compare import CosineFaceComparator
 from app.face.opencv_processor import OpenCVFaceProcessor, require_single_face
 from app.face.processor import FaceProcessingError
-from app.pipeline.runner import STAGE_NAMES
+from app.matching.candidate_matcher import AuthorizedCorpusCandidateMatcher
+from app.pipeline.runner import STAGE_NAMES, PipelineRunner, PipelineRunReport
+from app.search.authorized_corpus import AuthorizedCorpusSearchProvider
+from app.verification.verifier import BlockchainVerifier
 
 
 def _configure_logging(log_level: str) -> None:
@@ -89,6 +93,16 @@ def build_parser() -> argparse.ArgumentParser:
             "(Milestone 4 demonstration; independent of --reference/"
             "--compare/--fingerprint). Requires a local EVM development "
             "node running at BLOCKCHAIN_RPC_URL."
+        ),
+    )
+    parser.add_argument(
+        "--pipeline-demo",
+        type=str,
+        default=None,
+        help=(
+            "Run face processing, authorized search, candidate matching, content "
+            "fingerprinting, local blockchain registration, and verification. "
+            "Requires a running local EVM node."
         ),
     )
     return parser
@@ -247,6 +261,68 @@ def _run_blockchain_demo(text_file_path: str, settings) -> int:
     return 0 if status == "PASS" else 1
 
 
+def _build_authorized_pipeline(settings) -> PipelineRunner:
+    """Compose the existing local implementations for the eight-stage demo."""
+    provider = AuthorizedCorpusSearchProvider()
+    face_processor = OpenCVFaceProcessor()
+    face_comparator = CosineFaceComparator(settings.match_threshold)
+    return PipelineRunner(
+        face_processor=face_processor,
+        face_comparator=face_comparator,
+        search_provider=provider,
+        candidate_matcher_factory=lambda reference, processor, comparator: (
+            AuthorizedCorpusCandidateMatcher(
+                reference_embedding=reference,
+                face_processor=processor,
+                face_comparator=comparator,
+                candidate_image_paths=provider.candidate_image_paths,
+            )
+        ),
+        content_extractor=AuthorizedCorpusContentExtractor(provider.records),
+        canonicalizer=DeterministicCanonicalizer(),
+        blockchain_provider_factory=lambda: LocalBlockchainProvider(
+            rpc_url=settings.blockchain_rpc_url,
+            private_key=settings.blockchain_private_key,
+            contract_address=settings.blockchain_contract_address,
+        ),
+        verifier=BlockchainVerifier(),
+    )
+
+
+def _print_pipeline_report(report: PipelineRunReport) -> None:
+    for stage in report.stages:
+        indicator = "✓" if stage.succeeded else "✗"
+        print(f"{stage.label} {indicator}")
+        print(f"    {stage.detail}")
+
+    if report.candidates:
+        print(f"\nCandidates discovered: {report.candidate_count}")
+    if report.selected_match is not None:
+        print(f"Selected candidate: {report.selected_match.candidate_id}")
+        print(f"Similarity: {report.selected_match.similarity_score:.6f}")
+        print(f"Match band: {report.selected_match.match_band.value.upper()}")
+    if report.fingerprint is not None:
+        print(f"Content hash: {report.fingerprint.hash}")
+    if report.source_reference_hash is not None:
+        print(f"Source-reference hash: {report.source_reference_hash}")
+    if report.blockchain_record is not None:
+        print(f"Transaction: {report.blockchain_record.tx_hash}")
+        print(f"Block: {report.blockchain_record.block_number}")
+    if report.verification_result is not None:
+        status = "PASS" if report.verification_result.match else "FAIL"
+        print(f"VERIFICATION: {status}")
+    elif report.failure_reason is not None:
+        print(f"\nPipeline stopped: {report.failure_reason}")
+
+    print("\nNote: candidate similarity is not proof of real-world identity.")
+
+
+def _run_pipeline_demo(reference_image: str, settings) -> int:
+    report = _build_authorized_pipeline(settings).run(reference_image)
+    _print_pipeline_report(report)
+    return 0 if report.succeeded else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     _configure_output_encoding()
     parser = build_parser()
@@ -265,6 +341,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.fingerprint is not None:
         return _run_fingerprint_demo(args.fingerprint)
+
+    if args.pipeline_demo is not None:
+        return _run_pipeline_demo(args.pipeline_demo, settings)
 
     if args.reference is None:
         parser.print_help()

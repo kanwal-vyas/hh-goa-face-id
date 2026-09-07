@@ -25,6 +25,7 @@ a genuine on-chain round trip, not a stub.
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 
 import pytest
 from web3 import Web3
@@ -34,7 +35,9 @@ from app.blockchain.local_provider import (
     BlockchainRegistrationError,
     LocalBlockchainProvider,
 )
+from app.config.settings import load_settings
 from app.content.fingerprint import hash_source_reference
+from main import _build_authorized_pipeline
 
 RPC_URL = "http://127.0.0.1:8545"
 
@@ -138,3 +141,25 @@ def test_retrieve_unknown_transaction_returns_none(
     # A syntactically valid but never-broadcast transaction hash.
     unknown_tx_hash = "0x" + "ee" * 32
     assert provider.retrieve(unknown_tx_hash) is None
+
+
+def test_full_authorized_pipeline_registers_and_verifies_on_real_chain():
+    """The complete happy path uses the real local provider, not a mock."""
+    reference = (
+        Path(__file__).parents[2]
+        / "examples"
+        / "authorized_demo_images"
+        / "garden-avatar.png"
+    )
+
+    report = _build_authorized_pipeline(load_settings(env_file=None)).run(reference)
+
+    assert report.succeeded is True
+    assert len(report.stages) == 8
+    assert report.selected_match is not None
+    assert report.fingerprint is not None
+    assert report.blockchain_record is not None
+    assert report.verification_result is not None
+    assert report.verification_result.match is True
+    assert report.verification_result.local_hash == report.fingerprint.hash
+    assert report.verification_result.on_chain_hash == report.fingerprint.hash

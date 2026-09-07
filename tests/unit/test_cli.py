@@ -99,6 +99,12 @@ def test_help_lists_blockchain_demo_flag():
     assert "--blockchain-demo" in result.stdout
 
 
+def test_help_lists_pipeline_demo_flag():
+    result = _run_cli("--help")
+    assert result.returncode == 0
+    assert "--pipeline-demo" in result.stdout
+
+
 def test_blockchain_demo_missing_input_file_fails_cleanly():
     result = _run_cli("--blockchain-demo", "/tmp/does-not-exist-blockchain-demo.txt")
     assert result.returncode == 1
@@ -153,6 +159,25 @@ def test_blockchain_demo_succeeds_against_live_local_node(tmp_path):
     assert "Content hash:" in result.stdout
     assert "Transaction: 0x" in result.stdout
     assert "On-chain hash:" in result.stdout
+    assert "VERIFICATION: PASS" in result.stdout
+
+
+@pytest.mark.skipif(
+    not _node_available(),
+    reason=(
+        f"No local EVM node reachable at {RPC_URL}. Start one with "
+        "`npx hardhat node` and re-run to execute this test."
+    ),
+)
+def test_pipeline_demo_succeeds_against_live_local_node():
+    reference = "examples/authorized_demo_images/garden-avatar.png"
+    result = _run_cli("--pipeline-demo", reference)
+
+    assert result.returncode == 0, result.stderr
+    assert "[1/8] Face processing" in result.stdout
+    assert "[8/8] Verification" in result.stdout
+    assert "Selected candidate:" in result.stdout
+    assert "Transaction: 0x" in result.stdout
     assert "VERIFICATION: PASS" in result.stdout
 
 

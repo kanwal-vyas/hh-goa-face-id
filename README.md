@@ -8,11 +8,10 @@ whether the content has remained unchanged.
 
 ## Current implementation status
 
-**Milestone 7 is complete: bounded candidate matching.** The repository
-includes a real, local `SearchProvider` implementation that retrieves
-only a small preconfigured consented demo corpus, plus deterministic
-candidate-image matching. It is not a social-media or open-web search
-system.
+**Milestone 8 is complete: authorized end-to-end orchestration.** The
+repository runs a real, local eight-stage pipeline over a bounded
+synthetic corpus, ending in an on-chain content-integrity verification.
+It is not a social-media or open-web search system.
 
 Implemented and real (not stubbed, not mocked):
 - **Face detection / encoding** (`app/face/opencv_processor.py`,
@@ -32,25 +31,21 @@ Implemented and real (not stubbed, not mocked):
   (`app/blockchain/local_provider.py`) — a real Solidity registry
   contract (`FingerprintRegistry.sol`), deployed and called via
   `web3.py` against a real local EVM development node.
-- **Local-vs-on-chain fingerprint verification** — implemented directly
-  in the CLI's `--blockchain-demo` flow (see "Milestone 4 — Local
-  Blockchain" below); a dedicated `Verifier` abstraction for this same
-  comparison, wired into the full pipeline, is still scaffolded only
-  (see Known Limitations).
+- **Local-vs-on-chain fingerprint verification**
+  (`app/verification/verifier.py`) — `BlockchainVerifier` recomputes
+  the canonical-content hash, retrieves the actual transaction record,
+  and reports verification only when the hashes are equal.
 - **Authorized local corpus search** (`app/search/authorized_corpus.py`)
   — deterministic filtering and ranking of committed synthetic demo
   records, with no network access and no biometric lookup.
 - **Candidate matching** (`app/matching/candidate_matcher.py`) — local
   candidate-image processing, face-similarity comparison, explicit
   rejection handling, deterministic ranking, and cautious selection.
-- **CLI demonstrations** for all of the above (`--reference`/
-  `--compare`, `--fingerprint`, `--blockchain-demo`, and
-  `scripts/run_authorized_match_demo.py`).
+- **Eight-stage CLI demonstration** (`--pipeline-demo`) — orchestrates
+  the same real components through matching, extraction, hashing,
+  registration, and verification.
 
-**Not implemented**: full end-to-end pipeline orchestration
-(`PipelineRunner` remains a
-standalone scaffold — see Known Limitations). This project performs no
-web or social-media search of any kind.
+This project performs no web or social-media search of any kind.
 
 ## Face processing
 
@@ -149,46 +144,39 @@ deadline).
 python main.py --reference examples/test_face.jpg
 python main.py --reference examples/test_face.jpg --compare examples/authorized_demo_images/harbor-avatar.png
 python scripts/run_authorized_match_demo.py --reference examples/test_face.jpg
+python main.py --pipeline-demo examples/test_face.jpg
 ```
 
-Example output (illustrative — actual similarity/band depend on your
-images):
+The focused `--reference`/`--compare` command remains available for
+face-processing checks. For the integrated demo, start Hardhat and run
+`--pipeline-demo`; it displays real results from all eight stages.
 
 ```
-[1/8] Face processing
-    Reference face detected
-    Model: opencv-haar+lbp-v1
-    Embedding dimension: 512
-    Quality heuristic (blur-based, not a model confidence): 0.842
+[1/8] Face processing ✓
+[2/8] Authorized search ✓
+[3/8] Candidate matching ✓
+[4/8] Content extraction ✓
+[5/8] Canonicalization ✓
+[6/8] SHA-256 fingerprint ✓
+[7/8] Blockchain registration ✓
+[8/8] Verification ✓
 
-[2/8] Face comparison
-    Similarity: 0.9187
-    Result: STRONG_MATCH
-    (match_threshold=0.6)
-
-Note: this is a similarity score, not proof of real-world identity.
-
-Remaining pipeline stages are not wired into this CLI flow:
-  · [3/8] Candidate matching: not wired into this CLI flow
-  · [4/8] Content extraction: not wired into this CLI flow
-  · [5/8] Canonicalization: not wired into this CLI flow
-  · [6/8] SHA-256 fingerprint: not wired into this CLI flow
-  · [7/8] Blockchain registration: not wired into this CLI flow
-  · [8/8] Verification: not wired into this CLI flow
+Candidates discovered: 3
+Selected candidate: <candidate id>
+Similarity: <actual score>
+Match band: STRONG_MATCH
+Content hash: <SHA-256 digest>
+Transaction: 0x...
+Block: <block number>
+VERIFICATION: PASS
 ```
 
 **Similarity ≠ confirmed identity.** This score is a face-similarity
 signal only; it is never presented, here or anywhere else in this
 project, as proof that two images depict the same real-world person.
 
-**Note on the stage numbering above**: this face-processing flow does
-not go through canonicalization/hashing — it only ever produces a
-`FaceEmbedding`/similarity result, not `DiscoveredContent`.
-Canonicalization + SHA-256 fingerprinting and blockchain registration
-are real and tested, but are demonstrated independently via
-`--fingerprint`/`--blockchain-demo` (see next sections) until the
-pipeline-integration milestone wires every stage through one shared
-run — see "Milestones" below.
+`VERIFICATION: PASS` is a content-integrity result only. It never turns
+a candidate similarity result into real-world identity confirmation.
 
 ## Canonicalization and Fingerprinting
 
@@ -629,6 +617,31 @@ Face similarity and content relevance are kept as separate, distinct
 signals throughout — they are never collapsed into one vague confidence
 score.
 
+## End-to-end pipeline
+
+`PipelineRunner` receives the existing `FaceProcessor`, `FaceComparator`,
+bounded `SearchProvider`, `CandidateMatcher`, `ContentExtractor`,
+`Canonicalizer`, `BlockchainProvider`, and `Verifier` through dependency
+injection. The `--pipeline-demo` command wires the bundled OpenCV,
+authorized-corpus, deterministic-canonicalization, and local-Hardhat
+implementations together without adding a new search or identity layer.
+
+1. It requires exactly one face in the explicitly supplied reference image.
+2. It retrieves candidates only from `AuthorizedCorpusSearchProvider`.
+3. It ranks candidates with the existing matcher and continues only for its
+   unique, selected `STRONG_MATCH` result.
+4. It extracts that authorized record's local image bytes, text, and
+   content metadata.
+5. It canonicalizes that content and computes its SHA-256 content hash.
+6. It hashes the source reference separately, then registers both hashes and
+   version metadata through `LocalBlockchainProvider`.
+7. It recomputes the content hash, retrieves the real transaction record,
+   and prints `VERIFICATION: PASS` only if those hashes match.
+
+If any stage fails or selection is ambiguous, the runner returns a structured
+failure report and stops. It never creates placeholder hashes, transaction
+IDs, or verification results.
+
 ## Repository structure
 
 ```
@@ -638,16 +651,14 @@ project/
 │   │                     # OpenCVFaceProcessor + CosineFaceComparator (real impl)
 │   ├── search/           # SearchProvider interface + bounded local corpus provider
 │   ├── matching/          # CandidateMatcher + authorized-corpus implementation
-│   ├── content/           # ContentExtractor interface; DeterministicCanonicalizer
+│   ├── content/           # authorized-corpus ContentExtractor; DeterministicCanonicalizer
 │   │                       # + ContentFingerprint/hash_canonical_content/
 │   │                       # hash_source_reference (real impl)
 │   ├── blockchain/        # BlockchainProvider interface + models;
 │   │   ├── local_provider.py  # LocalBlockchainProvider (real impl, web3.py)
 │   │   └── contracts/         # FingerprintRegistry.sol + compiled artifact
-│   ├── verification/      # Verifier interface + VerificationResult (scaffold —
-│   │                       # see Known Limitations; real comparison lives in
-│   │                       # main.py's --blockchain-demo for now)
-│   ├── pipeline/          # PipelineRunner orchestration (scaffold-stage)
+│   ├── verification/      # BlockchainVerifier + VerificationResult
+│   ├── pipeline/          # PipelineRunner eight-stage orchestration
 │   └── config/            # Settings loading/validation
 ├── tests/
 │   ├── unit/               # Config, models, interfaces, face processing,
@@ -694,19 +705,20 @@ with a clear `ConfigError`, before any pipeline stage runs.
 
 ```bash
 python main.py --help
-python main.py --reference examples/reference.jpg
+python main.py --pipeline-demo examples/test_face.jpg
 ```
 
-With no `--reference` supplied, the CLI prints help and exits `0`. With a
-missing file, it prints a clear, actionable error and exits `1`. With a
-valid file, it prints the eight pipeline stages and honestly marks all
-of them as not yet implemented (face processing being the exception —
-see "Face processing" above for the real `--compare` flow).
+With no command supplied, the CLI prints help and exits `0`. The
+integrated demo fails closed: a missing/invalid reference, no candidates,
+no uniquely selectable strong candidate, extraction/canonicalization
+failure, unavailable blockchain, registration failure, or verification
+mismatch returns non-zero and does not report downstream success.
 
-Two further independent commands, documented in their own sections
-above: `--fingerprint <file>` (canonicalize + SHA-256 hash a local text
-file) and `--blockchain-demo <file>` (the same, plus register + retrieve
-+ verify against a local blockchain).
+Two further independent commands remain available: `--fingerprint <file>`
+(canonicalize + SHA-256 hash a local text file) and `--blockchain-demo
+<file>` (the same, plus register + retrieve + verify against a local
+blockchain). `--pipeline-demo` is the command that runs the complete
+authorized-corpus flow.
 
 ## Testing
 
@@ -890,9 +902,8 @@ This matching layer does not introduce a network source or reverse-image
 lookup. `scripts/run_authorized_match_demo.py` exercises the real local
 path: it processes the supplied reference, discovers every record from
 the authorized corpus, requires exactly one detected face per candidate,
-and prints the actual similarity score and match band. It does not alter
-the still-scaffolded `PipelineRunner`; a later integration milestone can
-inject the same provider and matcher into that runner.
+and prints the actual similarity score and match band. The integrated
+`PipelineRunner` uses the same provider and matcher for `--pipeline-demo`.
 
 ## Privacy/security considerations
 
@@ -928,10 +939,8 @@ inject the same provider and matcher into that runner.
   validated cutoff for this embedding — tune `MATCH_THRESHOLD` against
   your own images before a demo.
 - **Search is intentionally local and bounded.** The bundled provider
-  searches only the committed synthetic corpus. Candidate matching is
-  available as a local component, but neither is wired into the
-  scaffolded `PipelineRunner` or a concrete `ContentExtractor`. It cannot search the web,
-  social-media platforms, or arbitrary people.
+  searches only the committed synthetic corpus. The complete pipeline
+  cannot search the web, social-media platforms, or arbitrary people.
 - **The local blockchain is development/demo infrastructure, not
   production infrastructure.** `LocalBlockchainProvider` targets a
   local Hardhat-style dev node with unlocked test accounts; it has not
@@ -952,17 +961,6 @@ inject the same provider and matcher into that runner.
   together prove a real-world identity; they are three separate,
   independently-reported signals by design (per the architecture's
   "Matching Strategy" principle).
-- A dedicated `Verifier` implementation
-  (`app/verification/verifier.py`), wired into a shared pipeline, does
-  **not** exist yet — the real local-hash-vs-on-chain-hash comparison
-  currently lives directly in `main.py`'s `--blockchain-demo` handler
-  (`_verification_status()`). Consolidating this into `Verifier` and
-  `PipelineRunner` is future work (see Milestones).
-- `app/pipeline/runner.py`'s `PipelineRunner` is currently a standalone
-  scaffold not wired into any of `main.py`'s real flows
-  (face-processing, `--fingerprint`, or `--blockchain-demo`); it will be
-  updated to orchestrate all real stages together once `SearchProvider`
-  exists (see Milestones).
 - Blockchain integration tests (`tests/integration/test_local_blockchain.py`)
   require a reachable local EVM node to actually execute; they skip
   cleanly (not fail) when one isn't running. See "Testing" above for the
@@ -985,10 +983,9 @@ inject the same provider and matcher into that runner.
    local-vs-on-chain verification. ✅ done
 5. `SearchProvider` (authorized demo corpus) — real, non-hardcoded retrieval/ranking. ✅ done
 6. Candidate matching — combine face similarity + content relevance into `MatchResult`. ✅ done
-7. Dedicated `Verifier` + `PipelineRunner` integration — consolidate the
-   comparison currently inline in `--blockchain-demo` into the
-   `Verifier` abstraction, and wire face processing, canonicalization,
-   and blockchain stages through one shared pipeline run. Not started.
+7. Dedicated `Verifier` + `PipelineRunner` integration — `BlockchainVerifier`
+   and the authorized eight-stage pipeline are wired through
+   `--pipeline-demo`. ✅ done
 8. Tamper demo path as part of the integrated pipeline — scripted
    content modification + re-verification through `PipelineRunner`
    (a version of this already exists standalone in the canonicalization
@@ -999,19 +996,16 @@ inject the same provider and matcher into that runner.
 
 ## Demo-day checklist
 
-Covers only what is currently implemented — the blockchain
-fingerprinting demo, not the full Task 3 pipeline (no search stage
-exists yet):
+Covers the complete authorized local demonstration:
 
 1. `pip install -r requirements.txt`
 2. Start a local EVM node in its own terminal: `npx hardhat node` (see
    "Local blockchain setup" above for one-time setup)
 3. Leave `.env` blockchain settings at their defaults (or `cp
    .env.example .env` if you haven't already) — no key needed for local mode
-4. Have a demo content file ready (`examples/demo_content.txt` is
-   provided; swap in your own text file if you prefer)
-5. Run: `python main.py --blockchain-demo examples/demo_content.txt`
-6. Point at the printed `Transaction:` line and `Content hash:` line
-7. Point at the `[5/5]` retrieval step and the printed on-chain record
-8. Point at `VERIFICATION: PASS` — and note aloud what it does and does
-   not prove (see "Verification / tamper semantics" above)
+4. Run: `python main.py --pipeline-demo examples/test_face.jpg`
+5. Point at the eight successful stages, the candidate count, selected
+   candidate, similarity band, content hash, and transaction/block.
+6. Point at `VERIFICATION: PASS` — it means the freshly recomputed
+   content hash equals the hash retrieved from the real local chain; it
+   does not prove anyone's identity.

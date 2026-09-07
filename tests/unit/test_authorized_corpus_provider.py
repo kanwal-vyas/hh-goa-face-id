@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import pytest
 
+from app.content.authorized_corpus import AuthorizedCorpusContentExtractor
 from app.search.authorized_corpus import (
     AuthorizedCorpusSearchProvider,
     CorpusValidationError,
@@ -30,6 +31,20 @@ def test_provider_initializes_authorized_demo_corpus():
     assert provider.corpus_path == CORPUS_PATH.resolve()
     assert len(provider.records) == 3
     assert all(record.image_path.is_file() for record in provider.records)
+
+
+def test_authorized_content_extractor_returns_selected_record_content():
+    provider = AuthorizedCorpusSearchProvider()
+    record = provider.records[0]
+
+    extracted = AuthorizedCorpusContentExtractor(provider.records).extract(
+        record.candidate_id, record.source_reference
+    )
+
+    assert extracted.raw_bytes == record.image_path.read_bytes()
+    assert extracted.text == record.text
+    assert extracted.metadata == record.metadata
+    assert extracted.source_reference == record.source_reference
 
 
 def test_bundled_corpus_uses_opencv_decodable_raster_candidate_images():

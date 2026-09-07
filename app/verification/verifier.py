@@ -15,11 +15,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from app.blockchain.interface import BlockchainProvider
 from app.content.canonicalize import CanonicalContent
+from app.content.fingerprint import hash_canonical_content
 
 
 class VerificationStatus(str, Enum):
@@ -82,3 +83,38 @@ class Verifier(ABC):
         blockchain_provider: BlockchainProvider,
     ) -> VerificationResult:
         raise NotImplementedError
+
+
+class VerificationError(Exception):
+    """Raised when an on-chain record cannot be retrieved for verification."""
+
+
+class BlockchainVerifier(Verifier):
+    """Recompute a canonical-content fingerprint and verify it on-chain."""
+
+    def verify(
+        self,
+        canonical_content: CanonicalContent,
+        tx_hash: str,
+        blockchain_provider: BlockchainProvider,
+    ) -> VerificationResult:
+        local_fingerprint = hash_canonical_content(canonical_content)
+        on_chain_record = blockchain_provider.retrieve(tx_hash)
+        if on_chain_record is None:
+            raise VerificationError(
+                f"No blockchain record could be retrieved for transaction {tx_hash}."
+            )
+
+        on_chain_hash = on_chain_record.on_chain_payload.content_hash
+        status = (
+            VerificationStatus.VERIFIED
+            if local_fingerprint.hash == on_chain_hash
+            else VerificationStatus.TAMPER_DETECTED
+        )
+        return VerificationResult(
+            local_hash=local_fingerprint.hash,
+            on_chain_hash=on_chain_hash,
+            status=status,
+            tx_reference=on_chain_record.tx_hash,
+            checked_at=datetime.now(timezone.utc),
+        )
